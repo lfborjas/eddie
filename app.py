@@ -6,42 +6,9 @@ Eddie: un framework pequeño basado en WSGI
 #CAPA DE PRESENTACIÓN
 #Las "plantillas" que usaremos para el cuerpo de las respuestas
 
-base = """
-<!DOCTYPE html>
-<head>
-    <meta http-equiv="content-type" content="text/html; charset=utf-8"0>
-    <title>Ejemplo WSGI</title>
-    <style type="text/css" media="screen">
-    body {
-        margin-top: 1.0em;
-        background-color: #fafafa;
-        font-family: "Trebuchet MS", Helvetica, sans-serif;
-        font-size: 2.5em;
-        color: #444;
-        margin: 0 auto;
-        width: 700px;
-    }
-    </style>
-</head>
-<body>
-    %(contenido)s
-   <hr/>
-   <ul>
-        <li> <a href="/nota/crear">crear una nota</a></li>
-        <li> <a href='/notas'>Ver todas</a></li>
-   </ul>
-</body>
-"""
+base = open('base.html').read()
 
-formulario = """
-<form action="/notas" method="post" accept-charset="utf-8">
-
-    <p><label for="entrada">
-        <textarea id = "entrada" name="texto" rows="8" cols="40"></textarea>
-    </p>
-    <p><input type="submit" value="Agregar&rarr;"0></p>
-</form>
-"""
+formulario = open('formulario.html').read()
 
 #CAPA DE DATOS
 from eddie import Modelo, App
