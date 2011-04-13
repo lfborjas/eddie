@@ -45,37 +45,15 @@ formulario = """
 
 from wsgiref.simple_server import make_server
 from cgi import parse_qs
-from uuid import uuid1
 from datetime import datetime
 import re
-import shelve
 #CAPA DE DATOS
-#Un arreglo "global" de todas las notas creadas
-conn = shelve.open('notas.db')
-
-class Nota:
+from eddie import Modelo
+class Nota(Modelo):
     def __init__(self, c):
+        Modelo.__init__(self)
         self.texto = c
         self.creada_en = datetime.now()
-        self._id = uuid1().hex
-        self.pk = self._id
-
-    @classmethod
-    def todas(cls):
-        """Retorna todas las notas"""
-        return (nota for _id, nota in conn.items())
-    
-    @classmethod
-    def obtener(cls, _id):
-        """Busca una nota con el id dado"""
-        return conn.get(_id, None)
-
-    @classmethod
-    def crear(cls, contenido):
-        """Crea una nota"""
-        nota = Nota(contenido)
-        conn[nota._id] = nota
-
 
 #CAPA DE APLICACIÓN
 def application(environ, start_response): 
