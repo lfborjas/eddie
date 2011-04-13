@@ -51,12 +51,31 @@ import re
 import shelve
 #CAPA DE DATOS
 #Un arreglo "global" de todas las notas creadas
-notas = shelve.open('notas.db')
+conn = shelve.open('notas.db')
 
-def crear_nota(contenido):
-    """Agrega una nota con un identificador único al arreglo global de notas"""
+class Nota:
+    def __init__(self, c):
+        self.texto = c
+        self.creada_en = datetime.now()
+        self._id = uuid1().hex
+        self.pk = self._id
 
-    notas[uuid1().hex] = {'texto': contenido, 'creada_en': datetime.now()}
+    @classmethod
+    def todas(cls):
+        """Retorna todas las notas"""
+        return (nota for _id, nota in conn.items())
+    
+    @classmethod
+    def obtener(cls, _id):
+        """Busca una nota con el id dado"""
+        return conn.get(_id, None)
+
+    @classmethod
+    def crear(cls, contenido):
+        """Crea una nota"""
+        nota = Nota(contenido)
+        conn[nota._id] = nota
+
 
 #CAPA DE APLICACIÓN
 def application(environ, start_response): 
@@ -80,13 +99,13 @@ def application(environ, start_response):
     if path == '/notas':
         contenido = ""
         if method == 'POST': #creamos una nueva
-            crear_nota(POST['texto'][0])    
+            Nota.crear(POST['texto'][0])    
             contenido += "<div style='color: white; background-color: green;'>Nota creada con éxito </div>"
         #creada o no, siempre devolvemos la lista
         contenido += "<h2>Tus notas</h2><ul>"
-        for _id, nota in notas.items():
-            contenido += "<li>Creada en %s:\n %s... "%(nota['creada_en'], nota['texto'][:10])
-            contenido += "<a href='/notas/%s'>Ver</a></li>" % _id
+        for nota in Nota.todas():
+            contenido += "<li>Creada en %s:\n %s... "%(nota.creada_en, nota.texto[:10])
+            contenido += "<a href='/notas/%s'>Ver</a></li>" % nota.pk
         contenido += "</ul>"
 
         response = base % {'contenido' :contenido}
@@ -96,10 +115,11 @@ def application(environ, start_response):
 
     elif re.match(r'/notas/[a-z0-9]+', path):
         _id = re.match(r'/notas/([a-z0-9]+)', path).group(1)
+        nota = Nota.obtener(_id)
         response = base % {'contenido': """
                     <h2>Nota creada en %s</h2>
                     <p>%s</p>
-                """%(notas[_id]['creada_en'], notas[_id]['texto'])}
+                """%(nota.creada_en, nota.texto)}
     else:
         response = base % {'contenido': 
                             """No sé qué hacer con la ruta <strong>%s</strong>
