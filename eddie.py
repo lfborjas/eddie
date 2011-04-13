@@ -48,10 +48,10 @@ from cgi import parse_qs
 from uuid import uuid1
 from datetime import datetime
 import re
-
+import shelve
 #CAPA DE DATOS
 #Un arreglo "global" de todas las notas creadas
-notas = {}
+notas = shelve.open('notas.db')
 
 def crear_nota(contenido):
     """Agrega una nota con un identificador único al arreglo global de notas"""
