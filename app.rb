@@ -1,4 +1,4 @@
-require 'rack'
+%{rack pstore uuidtools}.each {|r| require r}
 daemon = lambda do |env|
     [200,
         {"Content-Type"=> 'text/plain'},
