@@ -6,4 +6,4 @@ daemon = lambda do |env|
     ]
 end
 
-Rack::Handler::WEBrick.run(daemon, :Port=>6660 )
+Rack::Server.new(:app=>daemon, :Port=>6660).start
