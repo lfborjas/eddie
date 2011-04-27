@@ -11,7 +11,7 @@ function llenarPlantilla(plantilla, contexto){
     for(valor in contexto){
         plantilla = plantilla.replace("{{"+valor+"}}", contexto[valor])
     }
-    return plantilla;
+    return plantilla
 }
 /*Datos*/
 
@@ -50,7 +50,7 @@ function crearNota(contenido){
 
 var http = require('http'),
     qs  = require('querystring'),
-    url = require('url');
+    url = require('url')
 
 var application = function(request, response){
     //1. Analizar la solicitud:
@@ -59,7 +59,7 @@ var application = function(request, response){
 
     
     if(request.method == 'POST'){
-        var body = '';
+        var body = ''
         //esperar los datos
         request.setEncoding('utf8')
         request.on('data', function(raw_data){
@@ -68,7 +68,9 @@ var application = function(request, response){
         //cuando termine de llegar, "parsearla"
         request.on('end', function(){
             POST = qs.parse(body)
-            //TODO: aquí debería pasar todo...
+            /*TODO: aquí debería pasar todo... Esto espera al final de la request, 
+              así que en las siguientes líneas, ya va por la otra (la de favicon)
+            */
         })
     }else{ //asumamos que viene en el querystring
         urlInfo = url.parse(request.url)
@@ -77,15 +79,15 @@ var application = function(request, response){
     
     //2. Reaccionar a la ruta:
     //TODO: aquí llega después del end de la request, así que viene con la otra, la de favicon.ico!
-    var resultado = "";
+    var resultado = ""
     switch(urlInfo.pathname){
         case '/notas':
-            resp = "";
+            resp = ""
             if(request.method == 'POST'){
                 crearNota(POST.texto)
                 resp += "<div style='color: white; background-color: green;'>Nota creada con éxito </div>"
             }
-            resp += "<h2>Tus notas</h2><ul>";
+            resp += "<h2>Tus notas</h2><ul>"
             for(id in notas){
                 nota = notas[id]
                 resp += "<li>Creada en: "+nota['creada_en']
@@ -94,11 +96,11 @@ var application = function(request, response){
             }
 
             resultado = llenarPlantilla(base, {contenido: resp}) 
-            break;
+            break
 
         case '/notas/crear':
             resultado = llenarPlantilla(base, {contenido: form})
-            break;
+            break
         default:
             //usamos el objeto RegExp
             if(matches = /\/notas\/[a-z0-9]+/.exec(urlInfo.pathname)){
