@@ -1,14 +1,16 @@
 /*Capa de Presentación*/
 
 var fs = require('fs');
+var plantillas = {}
+function llenarPlantilla(nombre, contexto){
+    var plantilla;
 
-//leer archivos como strings de unicode
-var base = fs.readFileSync("base.html", 'utf-8'),
-    crear_grupo = fs.readFileSync("entrar.html", 'utf-8'),
-    ver_grupo = fs.readFileSync("grupo.html", 'utf-8');
+    if (plantillas[nombre]) 
+        plantilla = plantillas[nombre]
+    else
+        plantilla = plantillas[nombre] = fs.readFileSync(nombre, 'utf-8')
 
-function llenarPlantilla(plantilla, contexto){
-    for(valor in contexto){
+    for(var valor in contexto){
         plantilla = plantilla.replace("{{"+valor+"}}", contexto[valor])
     }
     return plantilla
@@ -16,44 +18,25 @@ function llenarPlantilla(plantilla, contexto){
 
 /*Capa de Datos*/
 
-//objeto global donde guardaremos los grupos creados
-var grupos = {}
+//objeto global donde guardaremos los mensajes 
+var Canal = {mensajes: [], cola: []}
 
-function slugify(str){
-    return str.replace(/\s+/g,'-').replace(/[^a-zA-Z0-9\-]/g,'').toLowerCase()
-}
-
-function crearGrupo(titulo){
-    var slug = slugify(titulo)
-    if(!grupos.hasOwnProperty(slug)){
-        grupos[slug] = {mensajes : [], cola: []}
-        return true
-    }else{
-        return false
-    }
+function agregarMensaje(texto){
     
-}
+    var mensaje = {texto: texto, creado: (new Date()).getTime()}
 
-function agregarMensaje(nombre_grupo, texto){
-    
-    var mensaje = {texto: texto, creado: (new Date()).getTime()},
-        grupo = grupos[nombre_grupo]
-
-    if(grupo !== undefined) return;
-
-    grupo.mensajes.push(mensaje)
+    Canal.mensajes.push(mensaje)
 
     //quizá haya alguien esperando un mensaje nuevo:
-    while(grupo.cola.length > 0)
-        grupo.cola.shift().retrollamada([mensaje])
+    while(Canal.cola.length > 0)
+        Canal.cola.shift().retrollamada([mensaje])
 }
 
-function buscarMensajes(nombre_grupo, desde, retrollamada){
-    var mensajes = [],
-        grupo = grupos[nombre_grupo]
+function buscarMensajes(desde, retrollamada){
+    var mensajes = []
 
-    for (var i = 0; i < grupo.mensajes.length; i++) {
-        var mensaje = grupo.mensajes[i]
+    for (var i = 0; i < Canal.mensajes.length; i++) {
+        var mensaje = Canal.mensajes[i]
         if(mensaje.creado > desde)
             mensajes.push(mensaje)
     }
@@ -62,12 +45,12 @@ function buscarMensajes(nombre_grupo, desde, retrollamada){
         retrollamada(mensajes)
     }else{
         //ponerla a esperar:
-        grupo.cola.push({retrollamada: retrollamada,
+        Canal.cola.push({retrollamada: retrollamada,
                          esperando_desde: (new Date()).getTime()})
     }
 }
 
-/*Aplicación*/
+/*Capa de Aplicación*/
 
 var http = require('http'),
     qs  = require('querystring'),
@@ -76,58 +59,73 @@ var http = require('http'),
 var application = function(request, response){
     //1. Analizar la solicitud:
     var urlInfo = url.parse(request.url),
-        GET = qs.parse(urlInfo.query)
+        GET = qs.parse(urlInfo.query),
         path = urlInfo.pathname
     
-    //una función que sabrá como responder: 
+    //un poco de abstracción: una función que sabe cómo construir la respuesta
     var responder = function(res){
         var respuesta = res.tipo == 'application/json'?
                         JSON.stringify(res.respuesta) :
                         res.respuesta || "";
 
         response.writeHead(res.status || 200, {
-            'Content-type': resultado.tipo,
+            'Content-type': res.tipo,
             'Content-Length': respuesta.length
         })
 
         response.end(respuesta)
     }
     
-    //2. Construir respuesta
+    //2. Construir respuesta y responder
     var resultado = {tipo: "text/html"}
     if(path === '/'){
-        resultado.respuesta = llenarPlantilla(base, {contenido: crear_grupo})
+        resultado.respuesta = fs.readFileSync("index.html", 'utf-8')
+        responder(resultado)
 
-    }else if(path.indexOf('/grupos') == 0){
-        //son de la forma /grupos/GRUPO/ACCION
-        var matches = /\/grupos\/([a-zA-Z0-9\-]+)(\/[a-z]+)?/.exec(path),
-            id_grupo = matches[1] && slugify(matches[1]),
-            accion = matches[2] && matches[2].slice(1) || "ver";
+    }else if(path.indexOf('.js') != -1){
+        //está pidiendo algún .js
+        resultado.respuesta = fs.readFileSync(path.slice(1), 'utf-8')
+        resultado.tipo = "application/javascript"
+        responder(resultado)
+        
+    }else if(matches = path.match(/\/mensajes(\/[a-z]+)?/)){
+        //son de la forma /mensajes/ACCION
+        var accion = matches[1] && matches[1].slice(1) || "obtener";
 
-        if(!id_grupo){
-            //está queriendo crear un grupo
-            resultado.tipo = "application/json"
-            resultado.respuesta = {url: slugify(GET.title), 
-                                  creado: crearGrupo(GET.title)}
-        }else{
-            switch(accion){
-                case "ver":
-                    var info_grupo = {'slug': }
-                    resultado.respuesta = llenarPlantilla(base, 
-                                                          {contenido: llenarPlantilla(ver_grupo, {}) })
-                    break;
-                case ""
-            }
+        switch(accion){
+            case "obtener":
+                /*¡Función anónima como parámetro!
+                  Usa la propiedad de cierre (closure)
+                  Será llamada cuando los mensajes estén listos
+                 */
+                buscarMensajes(parseInt(GET.since || '0'), function(mensajes){
+                    resultado.tipo = 'application/json'
+                    /*la función map devuelve una lista con la función
+                      provista aplicada a cada elemento de la colección
+                     */
+                    resultado.respuesta = {messages: mensajes.map(function(mensaje){
+                      return llenarPlantilla("mensaje.html", mensaje)  
+                    })}
+                    responder(resultado)
+                })    
+                break;
+            case "nuevo":
+                if(GET.text)
+                    agregarMensaje(GET.text)
+
+                resultado.respuesta = {agregado : true}
+                responder(resultado)
+                break;
+            default:
+                resultado.respuesta = "Acción inválida"
+                resultado.status = 404
+                responder(resultado)
         }
-            
     }else{
+        resultado.respuesta = "Desconocido"
         resultado.status = 404
-        resultado.tipo = "text/plain"
+        responder(resultado)
     }
-
-
-    //3. responder:
-    responder(resultado);
 }
 
 /*crear un daemon que escucha por solicitudes y sabe responder

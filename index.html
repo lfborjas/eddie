@@ -19,5 +19,10 @@
     <script src="http://yandex.st/highlightjs/5.16/highlight.min.js"></script>
 </head>
 <body>
-    {{contenido}}
+    <div id="messages">
+        
+    </div>
+    <form action="/mensajes/nuevo" method="get" accept-charset="utf-8" id="msg-form">
+        <textarea name="text" rows="8" cols="40"></textarea>     
+    </form>
 </body>
