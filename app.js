@@ -1,52 +1,52 @@
 /*Capa de Presentación*/
 
 var fs = require('fs');
-var plantillas = {}
-function llenarPlantilla(nombre, contexto){
-    var plantilla;
+var templates = {}
+function fillTemplate(name, context){
+    var template;
 
-    if (plantillas[nombre]) 
-        plantilla = plantillas[nombre]
+    if (templates[name]) 
+        template = templates[name]
     else
-        plantilla = plantillas[nombre] = fs.readFileSync(nombre, 'utf-8')
+        template = templates[name] = fs.readFileSync(name, 'utf-8')
 
-    for(var valor in contexto){
-        plantilla = plantilla.replace("{{"+valor+"}}", contexto[valor])
+    for(var value in context){
+        template = template.replace("{{"+value+"}}", context[value])
     }
-    return plantilla
+    return template
 }
 
 /*Capa de Datos*/
 
-//objeto global donde guardaremos los mensajes 
-var Canal = {mensajes: [], cola: []}
+//objeto global donde guardaremos los messages 
+var Channel = {messages: [], queue: []}
 
-function agregarMensaje(texto){
+function addMessage(text){
     
-    var mensaje = {texto: texto, creado: (new Date()).getTime()}
+    var message = {text: text, timestamp: (new Date()).getTime()}
 
-    Canal.mensajes.push(mensaje)
+    Channel.messages.push(message)
 
-    //quizá haya alguien esperando un mensaje nuevo:
-    while(Canal.cola.length > 0)
-        Canal.cola.shift().retrollamada([mensaje])
+    //quizá haya alguien esperando un message nuevo:
+    while(Channel.queue.length > 0)
+        Channel.queue.shift().callback([message])
 }
 
-function buscarMensajes(desde, retrollamada){
-    var mensajes = []
+function getMessages(since, callback){
+    var messages = []
 
-    for (var i = 0; i < Canal.mensajes.length; i++) {
-        var mensaje = Canal.mensajes[i]
-        if(mensaje.creado > desde)
-            mensajes.push(mensaje)
+    for (var i = 0; i < Channel.messages.length; i++) {
+        var message = Channel.messages[i]
+        if(message.timestamp > since)
+            messages.push(message)
     }
 
-    if (mensajes.length > 0) {
-        retrollamada(mensajes)
+    if (messages.length > 0) {
+        callback(messages)
     }else{
         //ponerla a esperar:
-        Canal.cola.push({retrollamada: retrollamada,
-                         esperando_desde: (new Date()).getTime()})
+        Channel.queue.push({callback: callback,
+                            waiting_since: (new Date()).getTime()})
     }
 }
 
@@ -62,73 +62,73 @@ var application = function(request, response){
         GET = qs.parse(urlInfo.query),
         path = urlInfo.pathname
     
-    //un poco de abstracción: una función que sabe cómo construir la respuesta
-    var responder = function(res){
-        var respuesta = res.tipo == 'application/json'?
-                        JSON.stringify(res.respuesta) :
-                        res.respuesta || "";
+    //un poco de abstracción: una función que sabe cómo construir la respuesta 
+    var doResponse = function(res){
+        var body = res.type == 'application/json'?
+                        JSON.stringify(res.body) :
+                        res.body || "";
 
         response.writeHead(res.status || 200, {
-            'Content-type': res.tipo,
-            'Content-Length': respuesta.length
+            'Content-type': res.type,
+            'Content-Length': body.length
         })
 
-        response.end(respuesta)
+        response.end(body)
     }
     
-    //2. Construir respuesta y responder
-    var resultado = {tipo: "text/html"}
+    //2. Construir body y doResponse
+    var result = {type: "text/html"}
     if(path === '/'){
-        resultado.respuesta = fs.readFileSync("index.html", 'utf-8')
-        responder(resultado)
+        result.body = fs.readFileSync("index.html", 'utf-8')
+        doResponse(result)
 
     }else if(path.indexOf('.js') != -1){
         //está pidiendo algún .js
-        resultado.respuesta = fs.readFileSync(path.slice(1), 'utf-8')
-        resultado.tipo = "application/javascript"
-        responder(resultado)
+        result.body = fs.readFileSync(path.slice(1), 'utf-8')
+        result.type = "application/javascript"
+        doResponse(result)
         
-    }else if(matches = path.match(/\/mensajes(\/[a-z]+)?/)){
-        //son de la forma /mensajes/ACCION
-        var accion = matches[1] && matches[1].slice(1) || "obtener";
+    }else if(matches = path.match(/\/messages(\/[a-z]+)?/)){
+        //son de la forma /messages/ACCION
+        var action = matches[1] && matches[1].slice(1) || "recv";
 
-        switch(accion){
-            case "obtener":
+        switch(action){
+            case "recv":
                 /*¡Función anónima como parámetro!
                   Usa la propiedad de cierre (closure)
-                  Será llamada cuando los mensajes estén listos
+                  Será llamada cuando los messages estén listos
                  */
-                buscarMensajes(parseInt(GET.since || '0'), function(mensajes){
-                    resultado.tipo = 'application/json'
+                getMessages(parseInt(GET.since || '0'), function(messages){
+                    result.type = 'application/json'
                     /*la función map devuelve una lista con la función
                       provista aplicada a cada elemento de la colección
                      */
-                    resultado.respuesta = {messages: mensajes.map(function(mensaje){
-                      return llenarPlantilla("mensaje.html", mensaje)  
+                    result.body = {messages: messages.map(function(message){
+                      return fillTemplate("message.html", message)  
                     })}
-                    responder(resultado)
+                    doResponse(result)
                 })    
                 break;
-            case "nuevo":
+            case "send":
                 if(GET.text)
-                    agregarMensaje(GET.text)
+                    addMessage(GET.text)
 
-                resultado.respuesta = {agregado : true}
-                responder(resultado)
+                result.body = {agregado : true}
+                doResponse(result)
                 break;
             default:
-                resultado.respuesta = "Acción inválida"
-                resultado.status = 404
-                responder(resultado)
+                result.body = "Acción inválida"
+                result.status = 404
+                doResponse(result)
         }
     }else{
-        resultado.respuesta = "Desconocido"
-        resultado.status = 404
-        responder(resultado)
+        result.body = "Desconocido"
+        result.status = 404
+        doResponse(result)
     }
 }
 
-/*crear un daemon que escucha por solicitudes y sabe responder
+/*crear un daemon que escucha por solicitudes y sabe doResponse
   le pasará control a la función `application`
   */
 var daemon = http.createServer(application)

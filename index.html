@@ -7,10 +7,14 @@
         margin-top: 1.0em;
         background-color: #fafafa;
         font-family: "Trebuchet MS", Helvetica, sans-serif;
-        font-size: 2.5em;
+        font-size: 1.5em;
         color: #444;
         margin: 0 auto;
         width: 700px;
+    }
+
+    textarea{
+        width : 100%;
     }
     </style>
     <link rel="stylesheet" href="http://yandex.st/highlightjs/5.16/styles/default.min.css">
@@ -19,10 +23,11 @@
     <script src="http://yandex.st/highlightjs/5.16/highlight.min.js"></script>
 </head>
 <body>
+    <form action="/messages/send" method="get" accept-charset="utf-8" id="message-form">
+        <textarea name="text" rows="8" cols="40"></textarea>     
+        <p><id="button" input type="submit" value="Crear&rarr;"0></p>
+    </form>
     <div id="messages">
         
     </div>
-    <form action="/mensajes/nuevo" method="get" accept-charset="utf-8" id="msg-form">
-        <textarea name="text" rows="8" cols="40"></textarea>     
-    </form>
 </body>
