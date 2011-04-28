@@ -1,11 +1,11 @@
-/*Presentación*/
+/*Capa de Presentación*/
 
-var fs = require('fs'),
-    c  = require('crypto')
+var fs = require('fs');
 
 //leer archivos como strings de unicode
 var base = fs.readFileSync("base.html", 'utf-8'),
-    form = fs.readFileSync("form.html", 'utf-8')
+    crear_grupo = fs.readFileSync("entrar.html", 'utf-8'),
+    ver_grupo = fs.readFileSync("grupo.html", 'utf-8');
 
 function llenarPlantilla(plantilla, contexto){
     for(valor in contexto){
@@ -13,37 +13,58 @@ function llenarPlantilla(plantilla, contexto){
     }
     return plantilla
 }
-/*Datos*/
 
-//Objeto para guardar las notas en memoria
-/*
-   tratamos de leer de un archivo, si no existe, es un objeto vacío.
-   JSON: Javascript Object Notation, formato de texto para representar objetos
-   Persistencia súper simple, sólo las tenemos en un archivo y cargamos el objeto
- */
+/*Capa de Datos*/
 
-var notas = require('path').exists("db.json")
-            && fs.JSON.parse(fs.readFileSync("db.json", 'utf-8')) 
-            || {} 
+//objeto global donde guardaremos los grupos creados
+var grupos = {}
 
-function crearMD5(texto){
-    //ponemos var para que se cree en este ámbito
-    //una variable es global por defecto
-    var md5   = c.createHash('md5')
-    md5.update(texto)
-    return md5.digest('hex')
-} 
+function slugify(str){
+    return str.replace(/\s+/g,'-').replace(/[^a-zA-Z0-9\-]/g,'').toLowerCase()
+}
 
-function crearNota(contenido){
-    /*los objetos son como mapas: llave-valor
-    la llave puede ser un símbolo o un string*/
-    notas[crearMD5(contenido)] = {texto : contenido, creada_en: new Date()}
+function crearGrupo(titulo){
+    var slug = slugify(titulo)
+    if(!grupos.hasOwnProperty(slug)){
+        grupos[slug] = {mensajes : [], cola: []}
+        return true
+    }else{
+        return false
+    }
+    
+}
 
-    //actualizamos el archivo:
-    f = fs.openSync('./db.json','w')
-    fs.writeSync(f, JSON.stringify(notas))
-    fs.closeSync(f)
-    //por defecto se retorna undefined
+function agregarMensaje(nombre_grupo, texto){
+    
+    var mensaje = {texto: texto, creado: (new Date()).getTime()},
+        grupo = grupos[nombre_grupo]
+
+    if(grupo !== undefined) return;
+
+    grupo.mensajes.push(mensaje)
+
+    //quizá haya alguien esperando un mensaje nuevo:
+    while(grupo.cola.length > 0)
+        grupo.cola.shift().retrollamada([mensaje])
+}
+
+function buscarMensajes(nombre_grupo, desde, retrollamada){
+    var mensajes = [],
+        grupo = grupos[nombre_grupo]
+
+    for (var i = 0; i < grupo.mensajes.length; i++) {
+        var mensaje = grupo.mensajes[i]
+        if(mensaje.creado > desde)
+            mensajes.push(mensaje)
+    }
+
+    if (mensajes.length > 0) {
+        retrollamada(mensajes)
+    }else{
+        //ponerla a esperar:
+        grupo.cola.push({retrollamada: retrollamada,
+                         esperando_desde: (new Date()).getTime()})
+    }
 }
 
 /*Aplicación*/
@@ -54,73 +75,59 @@ var http = require('http'),
 
 var application = function(request, response){
     //1. Analizar la solicitud:
-    var POST = {},
-        GET  = {}
-
-    
-    if(request.method == 'POST'){
-        var body = ''
-        //esperar los datos
-        request.setEncoding('utf8')
-        request.on('data', function(raw_data){
-            body += raw_data
-        })
-        //cuando termine de llegar, "parsearla"
-        request.on('end', function(){
-            POST = qs.parse(body)
-            /*TODO: aquí debería pasar todo... Esto espera al final de la request, 
-              así que en las siguientes líneas, ya va por la otra (la de favicon)
-            */
-        })
-    }else{ //asumamos que viene en el querystring
-        urlInfo = url.parse(request.url)
+    var urlInfo = url.parse(request.url),
         GET = qs.parse(urlInfo.query)
+        path = urlInfo.pathname
+    
+    //una función que sabrá como responder: 
+    var responder = function(res){
+        var respuesta = res.tipo == 'application/json'?
+                        JSON.stringify(res.respuesta) :
+                        res.respuesta || "";
+
+        response.writeHead(res.status || 200, {
+            'Content-type': resultado.tipo,
+            'Content-Length': respuesta.length
+        })
+
+        response.end(respuesta)
     }
     
-    //2. Reaccionar a la ruta:
-    //TODO: aquí llega después del end de la request, así que viene con la otra, la de favicon.ico!
-    var resultado = ""
-    switch(urlInfo.pathname){
-        case '/notas':
-            resp = ""
-            if(request.method == 'POST'){
-                crearNota(POST.texto)
-                resp += "<div style='color: white; background-color: green;'>Nota creada con éxito </div>"
-            }
-            resp += "<h2>Tus notas</h2><ul>"
-            for(id in notas){
-                nota = notas[id]
-                resp += "<li>Creada en: "+nota['creada_en']
-                             +"\n"+nota.texto.slice(0,10)+"... "
-                             +"<a href='/notas/"+id+"'>Ver</a></li>"
-            }
+    //2. Construir respuesta
+    var resultado = {tipo: "text/html"}
+    if(path === '/'){
+        resultado.respuesta = llenarPlantilla(base, {contenido: crear_grupo})
 
-            resultado = llenarPlantilla(base, {contenido: resp}) 
-            break
+    }else if(path.indexOf('/grupos') == 0){
+        //son de la forma /grupos/GRUPO/ACCION
+        var matches = /\/grupos\/([a-zA-Z0-9\-]+)(\/[a-z]+)?/.exec(path),
+            id_grupo = matches[1] && slugify(matches[1]),
+            accion = matches[2] && matches[2].slice(1) || "ver";
 
-        case '/notas/crear':
-            resultado = llenarPlantilla(base, {contenido: form})
-            break
-        default:
-            //usamos el objeto RegExp
-            if(matches = /\/notas\/[a-z0-9]+/.exec(urlInfo.pathname)){
-               nota = notas[matches[1]]
-               resp = "<h2>Nota creada en"+nota.creada_en+"</h2>"
-                      +"<p>"+nota.texto+"</p>"
-               resultado =  llenarPlantilla(base, {contenido: resp})
-            }else{
-                resultado = llenarPlantilla(base, {contenido: 
-                                                    "No sé qué hacer con "+urlInfo.pathname})
+        if(!id_grupo){
+            //está queriendo crear un grupo
+            resultado.tipo = "application/json"
+            resultado.respuesta = {url: slugify(GET.title), 
+                                  creado: crearGrupo(GET.title)}
+        }else{
+            switch(accion){
+                case "ver":
+                    var info_grupo = {'slug': }
+                    resultado.respuesta = llenarPlantilla(base, 
+                                                          {contenido: llenarPlantilla(ver_grupo, {}) })
+                    break;
+                case ""
             }
+        }
+            
+    }else{
+        resultado.status = 404
+        resultado.tipo = "text/plain"
     }
+
 
     //3. responder:
-    response.writeHead(200, {
-        'Content-type': "text/html",
-        'Content-Length': resultado.length
-    })
-
-    response.end(resultado)
+    responder(resultado);
 }
 
 /*crear un daemon que escucha por solicitudes y sabe responder
