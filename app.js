@@ -5,37 +5,35 @@ var fs = require('fs')
 /*Capa de Datos*/
 
 //objeto global donde guardaremos los messages 
-var Channel = {messages: [], queue: []}
+var Channel = new function(){
+    var messages= [],
+        queue= []
 
-function addMessage(text){
-    
-    var message = {text: text, timestamp: (new Date()).getTime()}
+    this.addMessage = function(text){
+        
+        var message = {text: text, timestamp: (new Date()).getTime()}
 
-    Channel.messages.push(message)
+        messages.push(message)
 
-    //quizá haya alguien esperando un message nuevo:
-    while(Channel.queue.length > 0)
-        Channel.queue.shift().callback([message])
-}
-
-function getMessages(since, callback){
-    var messages = []
-
-    for (var i = 0; i < Channel.messages.length; i++) {
-        var message = Channel.messages[i]
-        if(message.timestamp > since)
-            messages.push(message)
+        //quizá haya alguien esperando un message nuevo:
+        while(queue.length > 0)
+            queue.shift().callback([message])
     }
 
-    if (messages.length > 0) {
-        callback(messages)
-    }else{
-        //ponerla a esperar:
-        Channel.queue.push({callback: callback,
-                            waiting_since: (new Date()).getTime()})
+    this.getMessages = function(since, callback){
+        var results = messages.filter(function(message){
+            return message.timestamp > since
+        }) 
+
+        if (results.length > 0) {
+            callback(results)
+        }else{
+            //ponerla a esperar:
+            queue.push({callback: callback,
+                                waiting_since: (new Date()).getTime()})
+        }
     }
 }
-
 /*Capa de Aplicación*/
 
 var http = require('http'),
@@ -83,7 +81,7 @@ var application = function(request, response){
                   Usa la propiedad de cierre (closure)
                   Será llamada cuando los messages estén listos
                  */
-                getMessages(parseInt(GET.since || '0'), function(messages){
+                Channel.getMessages(parseInt(GET.since || '0'), function(messages){
                     result.type = 'application/json'
                     /*la función map devuelve una lista con la función
                       provista aplicada a cada elemento de la colección
@@ -94,7 +92,7 @@ var application = function(request, response){
                 break;
             case "send":
                 if(GET.text)
-                    addMessage(GET.text)
+                    Channel.addMessage(GET.text)
                 result.type = "application/json"
                 result.body = {agregado : true}
                 doResponse(result)
