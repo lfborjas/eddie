@@ -1,20 +1,6 @@
 /*Capa de Presentación*/
 
-var fs = require('fs');
-var templates = {}
-function fillTemplate(name, context){
-    var template;
-
-    if (templates[name]) 
-        template = templates[name]
-    else
-        template = templates[name] = fs.readFileSync(name, 'utf-8')
-
-    for(var value in context){
-        template = template.replace("{{"+value+"}}", context[value])
-    }
-    return template
-}
+var fs = require('fs')
 
 /*Capa de Datos*/
 
@@ -72,7 +58,6 @@ var application = function(request, response){
             'Content-type': res.type,
             'Content-Length': body.length
         })
-
         response.end(body)
     }
     
@@ -103,16 +88,14 @@ var application = function(request, response){
                     /*la función map devuelve una lista con la función
                       provista aplicada a cada elemento de la colección
                      */
-                    result.body = {messages: messages.map(function(message){
-                      return fillTemplate("message.html", message)  
-                    })}
+                    result.body = {messages: messages}
                     doResponse(result)
                 })    
                 break;
             case "send":
                 if(GET.text)
                     addMessage(GET.text)
-
+                result.type = "application/json"
                 result.body = {agregado : true}
                 doResponse(result)
                 break;

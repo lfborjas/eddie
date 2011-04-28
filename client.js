@@ -18,7 +18,7 @@ function longPoll(data){
         {since: last_message_time},
         function(data){
             longPoll(data);
-        },
+        }
     );
 } 
 
@@ -30,8 +30,9 @@ $(function(){
         $.getJSON('/messages/send',
                $('#message-form').serialize(),
                function(){
+                    $('textarea').val('')
                     $("#button").removeAttr('disabled')
-               },
+               }
         );
     });
 });

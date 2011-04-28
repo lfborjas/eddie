@@ -16,18 +16,24 @@
     textarea{
         width : 100%;
     }
+
+    ul{
+        list-style-type: none;
+    }
     </style>
     <link rel="stylesheet" href="http://yandex.st/highlightjs/5.16/styles/default.min.css">
     <script src="jquery.js"></script>
     <script src="showdown.js"></script>
+    <script src="client.js"></script>
     <script src="http://yandex.st/highlightjs/5.16/highlight.min.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
 </head>
 <body>
     <form action="/messages/send" method="get" accept-charset="utf-8" id="message-form">
         <textarea name="text" rows="8" cols="40"></textarea>     
-        <p><id="button" input type="submit" value="Crear&rarr;"0></p>
+        <p><input type="submit" id="button" value="Crear&rarr;"0></p>
     </form>
-    <div id="messages">
+    <ul id="messages">
         
-    </div>
+    </ul>
 </body>
