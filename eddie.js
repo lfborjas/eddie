@@ -16,6 +16,7 @@ Function.prototype.partial = function(){
         return fn.apply(this, args)
     }
 }
+
 /*Agregar las propiedades de un objeto a otro*/
 Object.prototype.merge = function(other){
     for(var prop in other){
@@ -34,24 +35,6 @@ var Request = function(req){
 }
 
 /*Abstracción general de respuestas*/
-var Response = function(res, body, status, type, headers){
-    body = type === "application/json"?
-           JSON.stringify(body):
-           body || ""
-    headers.merge({
-        'Content-type': type,
-        'Content-Length': body.length
-    })            
-    
-    //recibe un objeto que sí sabe cómo terminar la respuesta
-    res.writeHead(status, headers)
-    res.end(body)
-}
-
-//"Subclases" de response: aplicaciones parciales de la función, son otras funciones
-var HTMLResponse = Response.partial(undefined, undefined, 200, "text/html", {}),
-    JSONResponse = Response.partial(undefined, undefined, 200, "application/json", {}),
-    NotFound     = Response.partial(undefined, "Not Found", 404, "text/plain", {})
 
 //En node.js, la variable global `exports` es lo que se podrá importar de este módulo en otros
 exports.staticHandler = function(req, res, filename){
@@ -72,7 +55,9 @@ exports.staticHandler = function(req, res, filename){
 }
 
 exports.respondWithFile = function(filename){
-    return exports.staticHandler.partial(undefined, undefined, filename)
+    return function(req, res){
+        exports.staticHandler(req, res, filename)
+    }
 }
 
 /*Función constructora, todo lo que asocie a `this`
@@ -90,11 +75,29 @@ exports.Application = function(port, host, debug){
     } 
 
     var dispatch = function(req, response){
+
+        var Response = function(body, status, type, headers){
+            body = type === "application/json"?
+                   JSON.stringify(body):
+                   body || ""
+            headers.merge({
+                'Content-type': type,
+                'Content-Length': body.length
+            })            
+            
+            //recibe un objeto que sí sabe cómo terminar la respuesta
+            response.writeHead(status, headers)
+            response.end(body)
+        }
+
+        //"Subclases" de response: aplicaciones parciales de la función, son otras funciones
+        response.asHTML  = Response.partial(undefined, 200, "text/html", {})
+        response.asJSON = Response.partial(undefined, 200, "application/json", {})
+
         var request = new Request(req),
             matches = null,
-            handler = NotFound.partial(response)
-        response.asHTML = HTMLResponse.partial(response, undefined)
-        response.asJSON = JSONResponse.partial(response, undefined)
+            handler = Response.partial("Not Found", 404, "text/plain", {}); 
+
         for(var route in handlers){
             if(matches = (new RegExp(route)).exec(request.pathname)){
                 handler = handlers[route]
